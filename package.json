@@ -32,7 +32,9 @@
     "format": "biome format --write .",
     "prepare": "husky",
     "site:dev": "cd site && npm run dev",
-    "site:build": "cd site && npm run build"
+    "site:build": "cd site && npm run build",
+    "clientv2:dev": "pnpm --filter @yep-anywhere/clientv2 dev",
+    "clientv2:build": "pnpm --filter @yep-anywhere/clientv2 build"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
