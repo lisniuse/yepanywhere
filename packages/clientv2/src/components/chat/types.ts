@@ -52,6 +52,7 @@ export type RenderItem =
       type: "assistant_text";
       id: string;
       text: string;
+      augmentHtml?: string;
     }
   | {
       type: "thinking";

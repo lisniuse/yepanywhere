@@ -37,3 +37,11 @@ export interface ProviderTab {
 export interface ApiErrorResponse {
   error?: string;
 }
+
+export interface ProviderStatus {
+  name: string;
+  displayName: string;
+  installed: boolean;
+  authenticated: boolean;
+  enabled: boolean;
+}

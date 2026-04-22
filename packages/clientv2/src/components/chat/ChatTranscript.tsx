@@ -22,6 +22,9 @@ function RenderTranscriptItem({ item }: { item: RenderItem }) {
   const [toolOpen, setToolOpen] = useState(false);
   const markdownHtml = useMemo(() => {
     if (item.type === "assistant_text" || item.type === "user_prompt") {
+      if (item.type === "assistant_text" && item.augmentHtml) {
+        return item.augmentHtml;
+      }
       return renderMarkdownToHtml(item.text);
     }
     return "";
@@ -101,14 +104,23 @@ function RenderTranscriptItem({ item }: { item: RenderItem }) {
 
 export function ChatTranscript({
   messages,
+  markdownAugments,
+  pendingHtml,
 }: {
   messages: SessionDetailMessage[];
+  markdownAugments?: Record<string, string>;
+  pendingHtml?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const items = useMemo(() => preprocessSessionMessages(messages), [messages]);
+  const items = useMemo(
+    () => preprocessSessionMessages(messages, { markdown: markdownAugments }),
+    [markdownAugments, messages],
+  );
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const previousLengthRef = useRef(0);
+  const previousVisibleCountRef = useRef(PAGE_SIZE);
+  const shouldAutoScrollRef = useRef(true);
   const preserveScrollRef = useRef<{
     anchorId: string;
     anchorTop: number;
@@ -128,9 +140,11 @@ export function ChatTranscript({
     }
 
     const lengthChanged = previousLengthRef.current !== items.length;
+    const visibleCountChanged = previousVisibleCountRef.current !== visibleCount;
     previousLengthRef.current = items.length;
+    previousVisibleCountRef.current = visibleCount;
 
-    if (!lengthChanged) {
+    if (!lengthChanged && !visibleCountChanged) {
       return;
     }
 
@@ -167,8 +181,10 @@ export function ChatTranscript({
       return;
     }
 
-    container.scrollTop = container.scrollHeight;
-  }, [items.length, visibleCount, loadingOlder]);
+    if (shouldAutoScrollRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [items.length, visibleCount, loadingOlder, pendingHtml]);
 
   const visibleItems = useMemo(() => {
     return items.slice(-visibleCount);
@@ -180,11 +196,15 @@ export function ChatTranscript({
       return;
     }
 
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 80;
+
     if (loadingOlder) {
       return;
     }
 
-    if (container.scrollTop > 0) {
+    if (container.scrollTop > 24) {
       return;
     }
 
@@ -237,6 +257,12 @@ export function ChatTranscript({
           <RenderTranscriptItem item={item} />
         </div>
       ))}
+      {pendingHtml ? (
+        <div
+          className="chat-bubble chat-bubble--assistant markdown-content chat-bubble--pending"
+          dangerouslySetInnerHTML={{ __html: pendingHtml }}
+        />
+      ) : null}
     </div>
   );
 }

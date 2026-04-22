@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { AddProjectModal } from "./components/AddProjectModal";
 import { ConversationStage } from "./components/ConversationStage";
@@ -22,10 +22,10 @@ function WorkspaceScreen() {
     }
   }, [navigate, projectId, workspace.selectedProjectId]);
 
-  function handleSelectProject(nextProjectId: string) {
+  const handleSelectProject = useCallback((nextProjectId: string) => {
     workspace.setSelectedProjectId(nextProjectId);
     navigate(`/projects/${nextProjectId}`);
-  }
+  }, [navigate, workspace]);
 
   return (
     <>
@@ -45,8 +45,11 @@ function WorkspaceScreen() {
           selectedProjectId={workspace.selectedProjectId}
           groupedSessions={workspace.groupedSessions}
           selectedSessions={workspace.selectedSessions}
+          providerAvailability={workspace.providerAvailability}
           sessionsLoading={workspace.sessionsLoading}
           sessionsError={workspace.sessionsError}
+          refreshProjects={workspace.refreshProjects}
+          refreshSessions={workspace.refreshSessions}
           formatRelativeTime={workspace.formatRelativeTime}
         />
       </div>

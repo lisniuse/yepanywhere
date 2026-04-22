@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   PlusCircleIcon,
   SearchIcon,
@@ -14,7 +15,7 @@ interface ProjectRailProps {
   formatRelativeTime: (input: string | null) => string;
 }
 
-export function ProjectRail({
+export const ProjectRail = memo(function ProjectRail({
   projects,
   projectsLoading,
   projectsError,
@@ -97,4 +98,4 @@ export function ProjectRail({
       </div>
     </aside>
   );
-}
+});

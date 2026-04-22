@@ -1,12 +1,16 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
-import { providerTabs } from "../config/providerTabs";
 import { fetchJson } from "../lib/api";
 import {
   formatRelativeTime,
   pickerWindow,
   providerGroupFromName,
 } from "../lib/workspace";
-import type { ProjectItem, ProviderGroup, SessionItem } from "../types/workspace";
+import type {
+  ProjectItem,
+  ProviderGroup,
+  ProviderStatus,
+  SessionItem,
+} from "../types/workspace";
 
 export function useWorkspaceData(routeProjectId?: string) {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -18,60 +22,128 @@ export function useWorkspaceData(routeProjectId?: string) {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
   const [pathDraft, setPathDraft] = useState("");
   const [pickerHint, setPickerHint] = useState<string | null>(null);
   const [addProjectError, setAddProjectError] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProjects() {
+  async function refreshProjects(
+    signal?: AbortSignal,
+    options?: { silent?: boolean },
+  ) {
+    if (!options?.silent) {
       setProjectsLoading(true);
       setProjectsError(null);
-
-      try {
-        const data = await fetchJson<{ projects: ProjectItem[] }>("/api/projects");
-
-        if (cancelled) {
-          return;
-        }
-
-        setProjects(data.projects);
-        setSelectedProjectId((current) => {
-          if (
-            routeProjectId &&
-            data.projects.some((project) => project.id === routeProjectId)
-          ) {
-            return routeProjectId;
-          }
-
-          if (current && data.projects.some((project) => project.id === current)) {
-            return current;
-          }
-
-          return data.projects[0]?.id ?? null;
-        });
-      } catch (error) {
-        if (!cancelled) {
-          setProjectsError(
-            error instanceof Error ? error.message : "加载项目失败",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setProjectsLoading(false);
-        }
-      }
     }
 
-    void loadProjects();
+    try {
+      const data = await fetchJson<{ projects: ProjectItem[] }>("/api/projects", {
+        signal,
+      });
+
+      if (signal?.aborted) {
+        return;
+      }
+
+      setProjects(data.projects);
+      setSelectedProjectId((current) => {
+        if (
+          routeProjectId &&
+          data.projects.some((project) => project.id === routeProjectId)
+        ) {
+          return routeProjectId;
+        }
+
+        if (current && data.projects.some((project) => project.id === current)) {
+          return current;
+        }
+
+        return data.projects[0]?.id ?? null;
+      });
+    } catch (error) {
+      if (!signal?.aborted) {
+        setProjectsError(
+          error instanceof Error ? error.message : "加载项目失败",
+        );
+      }
+    } finally {
+      if (!signal?.aborted && !options?.silent) {
+        setProjectsLoading(false);
+      }
+    }
+  }
+
+  async function refreshProviders(signal?: AbortSignal) {
+    try {
+      const data = await fetchJson<{ providers: ProviderStatus[] }>(
+        "/api/providers",
+        { signal },
+      );
+
+      if (!signal?.aborted) {
+        setProviders(data.providers);
+      }
+    } catch {
+      if (!signal?.aborted) {
+        setProviders([]);
+      }
+    }
+  }
+
+  async function refreshSessions(
+    projectId = selectedProjectId,
+    signal?: AbortSignal,
+    options?: { silent?: boolean },
+  ) {
+    if (!projectId) {
+      setSessions([]);
+      setSessionsError(null);
+      return;
+    }
+
+    if (!options?.silent) {
+      setSessionsLoading(true);
+      setSessionsError(null);
+    }
+
+    try {
+      const data = await fetchJson<{ sessions: SessionItem[] }>(
+        `/api/projects/${projectId}/sessions`,
+        { signal },
+      );
+
+      if (signal?.aborted) {
+        return;
+      }
+
+      startTransition(() => {
+        setSessions(data.sessions);
+      });
+    } catch (error) {
+      if (!signal?.aborted) {
+        setSessionsError(
+          error instanceof Error ? error.message : "加载会话失败",
+        );
+        setSessions([]);
+      }
+    } finally {
+      if (!signal?.aborted && !options?.silent) {
+        setSessionsLoading(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshProjects(controller.signal);
+    void refreshProviders(controller.signal);
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [routeProjectId]);
+  }, []);
 
   useEffect(() => {
     if (!routeProjectId) {
@@ -83,48 +155,15 @@ export function useWorkspaceData(routeProjectId?: string) {
         return current;
       }
 
-      const hasProject = projects.some((project) => project.id === routeProjectId);
-      return hasProject ? routeProjectId : current;
+      return projects.some((project) => project.id === routeProjectId)
+        ? routeProjectId
+        : current;
     });
   }, [projects, routeProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId) {
-      setSessions([]);
-      setSessionsError(null);
-      return;
-    }
-
     const controller = new AbortController();
-
-    async function loadSessions() {
-      setSessionsLoading(true);
-      setSessionsError(null);
-
-      try {
-        const data = await fetchJson<{ sessions: SessionItem[] }>(
-          `/api/projects/${selectedProjectId}/sessions`,
-          { signal: controller.signal },
-        );
-
-        startTransition(() => {
-          setSessions(data.sessions);
-        });
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setSessionsError(
-            error instanceof Error ? error.message : "加载会话失败",
-          );
-          setSessions([]);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setSessionsLoading(false);
-        }
-      }
-    }
-
-    void loadSessions();
+    void refreshSessions(selectedProjectId, controller.signal);
 
     return () => {
       controller.abort();
@@ -164,6 +203,17 @@ export function useWorkspaceData(routeProjectId?: string) {
       } as Record<ProviderGroup, SessionItem | null>,
     );
   }, [groupedSessions]);
+
+  const providerAvailability = useMemo(() => {
+    const findStatus = (names: string[]) =>
+      providers.find((provider) => names.includes(provider.name));
+
+    return {
+      claude: findStatus(["claude", "claude-ollama"]) ?? null,
+      codex: findStatus(["codex", "codex-oss"]) ?? null,
+      opencode: findStatus(["opencode"]) ?? null,
+    } as Record<ProviderGroup, ProviderStatus | null>;
+  }, [providers]);
 
   function openAddProjectModal() {
     setAddProjectError(null);
@@ -240,6 +290,9 @@ export function useWorkspaceData(routeProjectId?: string) {
     sessionsError,
     groupedSessions,
     selectedSessions,
+    providerAvailability,
+    refreshProjects,
+    refreshSessions,
     isAddProjectOpen,
     openAddProjectModal,
     closeAddProjectModal,

@@ -79,6 +79,7 @@ function isSessionSetupText(text: string): boolean {
 
 export function preprocessSessionMessages(
   messages: SessionDetailMessage[],
+  augments?: { markdown?: Record<string, string> },
 ): RenderItem[] {
   const items: RenderItem[] = [];
   const pendingToolCalls = new Map<string, number>();
@@ -151,6 +152,7 @@ export function preprocessSessionMessages(
           type: "assistant_text",
           id: messageId,
           text: content.trim(),
+          augmentHtml: augments?.markdown?.[messageId],
         });
       }
       return;
@@ -175,6 +177,7 @@ export function preprocessSessionMessages(
             type: "assistant_text",
             id: itemId,
             text,
+            augmentHtml: augments?.markdown?.[messageId],
           });
         }
         return;

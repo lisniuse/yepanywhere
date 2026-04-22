@@ -125,3 +125,8 @@ Read more: [How we use the SDK](https://yepanywhere.com/tos-compliance.html) | [
 ## License
 
 MIT
+
+
+pnpm --filter server dev
+
+pnpm --filter @yep-anywhere/clientv2 dev
